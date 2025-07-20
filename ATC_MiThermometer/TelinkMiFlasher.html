@@ -80,29 +80,7 @@ function generateATCName(macAddress) {
     return "ATC_" + lastThreeBytes;
 }
 
-/**
- * Get device MAC address if available
- * @returns {string|null} MAC address or null if not available
- */
-function getDeviceMAC() {
-    return deviceMAC;
-}
 
-/**
- * Set device MAC address
- * @param {string} mac - MAC address
- */
-function setDeviceMAC(mac) {
-    deviceMAC = mac;
-}
-
-/**
- * Set current firmware type
- * @param {string} type - Firmware type: 'custom', 'zigbee', 'zb', 'original'
- */
-function setCurrentFirmwareType(type) {
-    currentFirmwareType = type;
-}
 
 var $ = function(id) { return document.getElementById(id);}
 function resetVariables() {
@@ -142,8 +120,8 @@ function resetVariables() {
 	devtime = {};
 	writeCharacteristicSpeed = null;
 	// Reset MAC address and firmware type tracking
-	setDeviceMAC(null);
-	setCurrentFirmwareType(null);
+	deviceMAC = null;
+	currentFirmwareType = null;
 	$("ldfrmw").innerHTML ='';
 	$("custcfg").innerHTML = '';
 	$("tempHumiData").innerHTML = "Temp/Humidity: waiting notify for data after connecting";
@@ -215,7 +193,7 @@ function connect() {
 		var macInfo = "";
 		if (bluetoothDevice.address) {
 			macInfo = " (MAC: " + bluetoothDevice.address + ")";
-			setDeviceMAC(bluetoothDevice.address);
+			deviceMAC = bluetoothDevice.address;
 		}
 		addLog("Connecting to: " + bluetoothDevice.name + macInfo);
 		setStatus("Connecting to: " + bluetoothDevice.name + macInfo + " ...");
@@ -419,7 +397,7 @@ function catchAdvertisement(device) {
 					let mac = hex(buf[i+5],2)+hex(buf[i+4],2)+hex(buf[i+3],2)+hex(buf[i+2],2)+hex(buf[i+1],2)+hex(buf[i],2);
 					s += ', MAC: '+mac;
 					// Store MAC address for later use
-					setDeviceMAC(mac);
+					deviceMAC = mac;
 					i += 6;
 				}
 				if((ctrl & 0x20) && b.byteLength >= i + 1) {
@@ -522,7 +500,7 @@ function catchAdvertisement(device) {
 			s = 'MAC: '+mac;
 			s += ', Bat: '+bat+'%, Vbat: '+vbat+' mV , Temp: '+temp+'°C, Humi: '+humi+'%, Count: '+cnt+', Flg: '+flg;
 			// Store MAC address for later use
-			setDeviceMAC(mac);
+			deviceMAC = mac;
 		} else if(b.byteLength == 13) { // atc1441
 			// A4 C1 38 56 58 70 01 0A 18 48 0B 25 70
 			let temp = b.getInt16(6, false) / 10.0;
@@ -534,7 +512,7 @@ function catchAdvertisement(device) {
 			s = 'MAC: '+mac;
 			s += ', Bat: '+bat+'%, Vbat: '+vbat+' mV, Temp: '+temp+'°C, Humi: '+humi+'%, Count: '+cnt;
 			// Store MAC address for later use
-			setDeviceMAC(mac);
+			deviceMAC = mac;
 		}
 	} else if(key == '0000fff9-0000-1000-8000-00805f9b34fb') { // CGG1 "Goose"
 		// 0801 AE1610342D58 0104 1401 4601 0201 58
@@ -546,7 +524,7 @@ function catchAdvertisement(device) {
 			s = 'MAC: '+mac;
 			s += ', Bat: '+bat+'%, Temp: '+temp+'°C, Humi: '+humi+'%';
 			// Store MAC address for later use
-			setDeviceMAC(mac);
+			deviceMAC = mac;
 			log(s);
 		}
 	} else if(key == '0000fdcd-0000-1000-8000-00805f9b34fb') {	// Qingping / ClearGrass
@@ -561,7 +539,7 @@ function catchAdvertisement(device) {
 			let mac = hex(buf[2],2)+hex(buf[3],2)+hex(buf[4],2)+hex(buf[5],2)+hex(buf[6],2)+hex(buf[7],2);
 			s = 'MAC: '+mac;
 			// Store MAC address for later use
-			setDeviceMAC(mac);
+			deviceMAC = mac;
 			if(device_id == 0x01) s+=' CGG1 "Goose"';
 			else if (device_id == 0x07) s+=' CGG1';
 			else if (device_id == 0x09) s+=' CGP1W';
@@ -2489,7 +2467,7 @@ function FirmwareZB() {
 	if(hwver_id != null) {
 		if(!confirm("Attention: This is a 'trial' firmware. Created to be able to test the operation with Zigbee, but having the ability to use BLE and Zigbee OTA for those whose Zigbee coordinator does not allow Zigbee OTA. Which is relevant for closed gateways of different brands. ZB firmware converts the thermometer to the Zigbee protocol and BLE OTA only! All data for MiHome and measurement memory will be erased!"))
 		   return;
-		setCurrentFirmwareType('zb');
+		currentFirmwareType = 'zb';
 		let fn = otazbfiles.bin[hwver_id];
 		addAlog("Load firmware file '"+fn+"'...");
 		if(fn.slice(0,6) == "https:")
@@ -2502,7 +2480,7 @@ function FirmwareZigbee() {
 	if(hwver_id != null) {
 		if(!confirm("Attention: Zigbee firmware converts the thermometer to the Zigbee protocol! All data for MiHome and measurement memory will be erased!"))
 		   return;
-		setCurrentFirmwareType('zigbee');
+		currentFirmwareType = 'zigbee';
 		let fn = otazfiles.bin[hwver_id];
 		addAlog("Load firmware file '"+fn+"'...");
 		if(fn.slice(0,6) == "https:")
@@ -2513,7 +2491,7 @@ function FirmwareZigbee() {
 }
 function FirmwareUpgrade() {
 	if(hwver_id != null) {
-		setCurrentFirmwareType('custom');
+		currentFirmwareType = 'custom';
 		let fn = otafiles.custom[hwver_id];
 		addAlog("Load firmware file '"+fn+"'...");
 		if(fn.slice(0,6) == "https:")
@@ -2534,7 +2512,7 @@ function BetaFirmwareUpgrade() {
 }
 function BackToOriginal() {
 	if(hwver_id != null) {
-		setCurrentFirmwareType('original');
+		currentFirmwareType = 'original';
 		let fn = otafiles.original[hwver_id];
 		addAlog("Load firmware file '"+fn+"'...");
 		if(fn.slice(0,6) == "https:")
@@ -2581,7 +2559,6 @@ function updateBegin() {
 	
 	// Predict device name changes based on firmware type
 	if (bluetoothDevice) {
-		var deviceMAC = getDeviceMAC();
 		if (deviceMAC) {
 			if (currentFirmwareType === 'custom') {
 				var atcName = generateATCName(deviceMAC);
@@ -3715,50 +3692,4 @@ function SendCustomConfig() {
 		sendCustomSetting('55'+hex(cfg.flg,2)+hex(cfg.flg2,2)+hex(cfg.temp_offset&0xff,2)+hex(cfg.humi_offset&0xff,2)+hex(cfg.advertising_interval,2)+hex(cfg.measure_interval,2)+hex(cfg.rf_tx_power,2)+hex(cfg.connect_latency,2)+hex(cfg.lcd_tint,2)+hex(cfg.hver,2)+hex(cfg.av_meas_mem,2));
 	}
 	$("custcfg").innerHTML = '<hr><button type="button" onclick="sendCustomSetting(&quot;55&quot;);">Get Config</button><br>Send commands to custom firmware:<br><input type="text" id="cmdTXT" value=""><button type="button" onclick="sendCustomSetting($(&quot;cmdTXT&quot;).value,settingsCharacteristics);">Send</button><br>';
-}
-
-// MAC address and firmware type tracking
-var currentFirmwareType = null;
-var deviceMAC = null;
-
-/**
- * Generate ATC name from MAC address
- * @param {string} macAddress - MAC address in format A4:C1:38:C9:26:47
- * @returns {string|null} ATC name in format ATC_XXXXXX or null if invalid
- */
-function generateATCName(macAddress) {
-    if (!macAddress) return null;
-    
-    // Remove colons and convert to uppercase
-    var cleanMac = macAddress.replace(/:/g, '').toUpperCase();
-    
-    // Take the last 6 characters (3 bytes) from the MAC
-    var lastThreeBytes = cleanMac.slice(-6);
-    
-    // Generate ATC_XXXXXX format
-    return "ATC_" + lastThreeBytes;
-}
-
-/**
- * Get device MAC address if available
- * @returns {string|null} MAC address or null if not available
- */
-function getDeviceMAC() {
-    return deviceMAC;
-}
-
-/**
- * Set device MAC address
- * @param {string} mac - MAC address
- */
-function setDeviceMAC(mac) {
-    deviceMAC = mac;
-}
-
-/**
- * Set current firmware type
- * @param {string} type - Firmware type: 'custom', 'zigbee', 'zb', 'original'
- */
-function setCurrentFirmwareType(type) {
-    currentFirmwareType = type;
 }

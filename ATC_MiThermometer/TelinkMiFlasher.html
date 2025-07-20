@@ -58,6 +58,30 @@ var mi_random_key, mi_random_key_recv, mi_device_info_recv, mi_device_info_send,
 var keypair, is_activated, own_public_key, device_public_key, shared_key, derived_key, mi_write_did;
 var device_new_id = "00626c742e332e31323976" + makeRandomID(6) + "673030"; // 0+"blt.6.129v"+rand[6]+"g00"
 
+// MAC address and firmware type tracking
+var currentFirmwareType = null;
+var deviceMAC = null;
+
+/**
+ * Generate ATC name from MAC address
+ * @param {string} macAddress - MAC address in format A4:C1:38:C9:26:47
+ * @returns {string|null} ATC name in format ATC_XXXXXX or null if invalid
+ */
+function generateATCName(macAddress) {
+    if (!macAddress) return null;
+    
+    // Remove colons and convert to uppercase
+    var cleanMac = macAddress.replace(/:/g, '').toUpperCase();
+    
+    // Take the last 6 characters (3 bytes) from the MAC
+    var lastThreeBytes = cleanMac.slice(-6);
+    
+    // Generate ATC_XXXXXX format
+    return "ATC_" + lastThreeBytes;
+}
+
+
+
 var $ = function(id) { return document.getElementById(id);}
 function resetVariables() {
 	fwmaxsize = MAX_BLE_OTA_SIZE;
@@ -95,6 +119,9 @@ function resetVariables() {
 	//fwname = '';
 	devtime = {};
 	writeCharacteristicSpeed = null;
+	// Reset MAC address and firmware type tracking
+	deviceMAC = null;
+	currentFirmwareType = null;
 	$("ldfrmw").innerHTML ='';
 	$("custcfg").innerHTML = '';
 	$("tempHumiData").innerHTML = "Temp/Humidity: waiting notify for data after connecting";
@@ -162,8 +189,14 @@ function connect() {
 		if($("advmac").checked)
 			catchAdvertisement(device);
 		bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
-		addLog("Connecting to: " + bluetoothDevice.name);
-		setStatus("Connecting to: " + bluetoothDevice.name + " ...");
+		// Try to get MAC address from device if available
+		var macInfo = "";
+		if (bluetoothDevice.address) {
+			macInfo = " (MAC: " + bluetoothDevice.address + ")";
+			deviceMAC = bluetoothDevice.address;
+		}
+		addLog("Connecting to: " + bluetoothDevice.name + macInfo);
+		setStatus("Connecting to: " + bluetoothDevice.name + macInfo + " ...");
 		if(!$("advmac").checked)
 				doConnect();
 	}).catch(handleError);
@@ -361,7 +394,10 @@ function catchAdvertisement(device) {
 				if(ctrl & 0x200)
 					s +=', Request APP to register and bind';
 				if((ctrl & 0x10) && b.byteLength >= i + 6) {
-					s += ', MAC: '+hex(buf[i+5],2)+hex(buf[i+4],2)+hex(buf[i+3],2)+hex(buf[i+2],2)+hex(buf[i+1],2)+hex(buf[i],2);
+					let mac = hex(buf[i+5],2)+hex(buf[i+4],2)+hex(buf[i+3],2)+hex(buf[i+2],2)+hex(buf[i+1],2)+hex(buf[i],2);
+					s += ', MAC: '+mac;
+					// Store MAC address for later use
+					deviceMAC = mac;
 					i += 6;
 				}
 				if((ctrl & 0x20) && b.byteLength >= i + 1) {
@@ -460,8 +496,11 @@ function catchAdvertisement(device) {
 			let bat = b.getUint8(12);
 			let cnt = b.getUint8(13);
 			let flg = b.getUint8(14);
-			s = 'MAC: '+hex(buf[5],2)+hex(buf[4],2)+hex(buf[3],2)+hex(buf[2],2)+hex(buf[1],2)+hex(buf[0],2);
+			let mac = hex(buf[5],2)+hex(buf[4],2)+hex(buf[3],2)+hex(buf[2],2)+hex(buf[1],2)+hex(buf[0],2);
+			s = 'MAC: '+mac;
 			s += ', Bat: '+bat+'%, Vbat: '+vbat+' mV , Temp: '+temp+'°C, Humi: '+humi+'%, Count: '+cnt+', Flg: '+flg;
+			// Store MAC address for later use
+			deviceMAC = mac;
 		} else if(b.byteLength == 13) { // atc1441
 			// A4 C1 38 56 58 70 01 0A 18 48 0B 25 70
 			let temp = b.getInt16(6, false) / 10.0;
@@ -469,8 +508,11 @@ function catchAdvertisement(device) {
 			let bat = b.getUint8(9);
 			let vbat = b.getUint16(10, false);
 			let cnt = b.getUint8(12);
-			s = 'MAC: '+hex(buf[0],2)+hex(buf[1],2)+hex(buf[2],2)+hex(buf[3],2)+hex(buf[4],2)+hex(buf[5],2);
+			let mac = hex(buf[0],2)+hex(buf[1],2)+hex(buf[2],2)+hex(buf[3],2)+hex(buf[4],2)+hex(buf[5],2);
+			s = 'MAC: '+mac;
 			s += ', Bat: '+bat+'%, Vbat: '+vbat+' mV, Temp: '+temp+'°C, Humi: '+humi+'%, Count: '+cnt;
+			// Store MAC address for later use
+			deviceMAC = mac;
 		}
 	} else if(key == '0000fff9-0000-1000-8000-00805f9b34fb') { // CGG1 "Goose"
 		// 0801 AE1610342D58 0104 1401 4601 0201 58
@@ -478,8 +520,11 @@ function catchAdvertisement(device) {
 			let temp = b.getInt16(10, true) / 10.0;
 			let humi = b.getInt16(12, true) / 10.0;
 			let bat = b.getUint8(16);
-			let s = 'MAC: '+hex(buf[2],2)+hex(buf[3],2)+hex(buf[4],2)+hex(buf[5],2)+hex(buf[6],2)+hex(buf[7],2);
+			let mac = hex(buf[2],2)+hex(buf[3],2)+hex(buf[4],2)+hex(buf[5],2)+hex(buf[6],2)+hex(buf[7],2);
+			s = 'MAC: '+mac;
 			s += ', Bat: '+bat+'%, Temp: '+temp+'°C, Humi: '+humi+'%';
+			// Store MAC address for later use
+			deviceMAC = mac;
 			log(s);
 		}
 	} else if(key == '0000fdcd-0000-1000-8000-00805f9b34fb') {	// Qingping / ClearGrass
@@ -491,7 +536,10 @@ function catchAdvertisement(device) {
 		let msg_length = b.byteLength;
 		if(msg_length >= 11 && (b.getUint8(0)&0x3f) == 0x08) {
 			let device_id = b.getUint8(1);
-			s = 'MAC: '+hex(buf[2],2)+hex(buf[3],2)+hex(buf[4],2)+hex(buf[5],2)+hex(buf[6],2)+hex(buf[7],2);
+			let mac = hex(buf[2],2)+hex(buf[3],2)+hex(buf[4],2)+hex(buf[5],2)+hex(buf[6],2)+hex(buf[7],2);
+			s = 'MAC: '+mac;
+			// Store MAC address for later use
+			deviceMAC = mac;
 			if(device_id == 0x01) s+=' CGG1 "Goose"';
 			else if (device_id == 0x07) s+=' CGG1';
 			else if (device_id == 0x09) s+=' CGP1W';
@@ -2419,6 +2467,7 @@ function FirmwareZB() {
 	if(hwver_id != null) {
 		if(!confirm("Attention: This is a 'trial' firmware. Created to be able to test the operation with Zigbee, but having the ability to use BLE and Zigbee OTA for those whose Zigbee coordinator does not allow Zigbee OTA. Which is relevant for closed gateways of different brands. ZB firmware converts the thermometer to the Zigbee protocol and BLE OTA only! All data for MiHome and measurement memory will be erased!"))
 		   return;
+		currentFirmwareType = 'zb';
 		let fn = otazbfiles.bin[hwver_id];
 		addAlog("Load firmware file '"+fn+"'...");
 		if(fn.slice(0,6) == "https:")
@@ -2431,6 +2480,7 @@ function FirmwareZigbee() {
 	if(hwver_id != null) {
 		if(!confirm("Attention: Zigbee firmware converts the thermometer to the Zigbee protocol! All data for MiHome and measurement memory will be erased!"))
 		   return;
+		currentFirmwareType = 'zigbee';
 		let fn = otazfiles.bin[hwver_id];
 		addAlog("Load firmware file '"+fn+"'...");
 		if(fn.slice(0,6) == "https:")
@@ -2441,6 +2491,7 @@ function FirmwareZigbee() {
 }
 function FirmwareUpgrade() {
 	if(hwver_id != null) {
+		currentFirmwareType = 'custom';
 		let fn = otafiles.custom[hwver_id];
 		addAlog("Load firmware file '"+fn+"'...");
 		if(fn.slice(0,6) == "https:")
@@ -2461,6 +2512,7 @@ function BetaFirmwareUpgrade() {
 }
 function BackToOriginal() {
 	if(hwver_id != null) {
+		currentFirmwareType = 'original';
 		let fn = otafiles.original[hwver_id];
 		addAlog("Load firmware file '"+fn+"'...");
 		if(fn.slice(0,6) == "https:")
@@ -2504,6 +2556,25 @@ function updateBegin() {
 		alert('EXT OTA is not supported! Update the new custom version (4.6 or higher)!');
 		return;
 	}
+	
+	// Predict device name changes based on firmware type
+	if (bluetoothDevice) {
+		if (deviceMAC) {
+			if (currentFirmwareType === 'custom') {
+				var atcName = generateATCName(deviceMAC);
+				if (atcName) {
+					addLog("Device will be renamed to: " + atcName + " after flashing custom firmware");
+				}
+			} else if (currentFirmwareType === 'zigbee') {
+				addLog("Device will be converted to Zigbee protocol after flashing");
+			} else if (currentFirmwareType === 'zb') {
+				addLog("Device will be converted to Zigbee protocol (trial firmware) after flashing");
+			} else if (currentFirmwareType === 'original') {
+				addLog("Device will keep original LYWSD03MMC name after flashing stock firmware");
+			}
+		}
+	}
+	
 	// if Host is IOS = "1e0001"
 	if (miEnabled && writeCharacteristicSpeed != null) mainCharSend("1e0000", writeCharacteristicSpeed); // this makes the upload faster
 	setTimeout(function() {
@@ -3625,56 +3696,42 @@ function SendCustomConfig() {
 </script>
 <h1>Telink Flasher for Mi Thermostat</h1>
 <div class="navbar">
-	<div class="container nav-container">
-		<input class="checkbox" type="checkbox" name="" id="">
-		<div class="hamburger-lines">
-		  <span class="line line1"></span>
-		  <span class="line line2"></span>
-		  <span class="line line3"></span>
-		</div>
-	  <div class="menu-items">
-			<li> GitHub </li>
-			<li><a href="https://github.com/atc1441/ATC_MiThermometer">© atc1441</a> <a href="https://github.com/pvvx/ATC_MiThermometer">&#9432; pvvx</a></li>
-			<li> Live Data </li>
-			<li><a href="GraphAtc.html">Graph Atc 1</a></li>
-			<li><a href="GraphAtc1.html">Graph Atc 2</a></li>
-			<li><a href="GraphAtc2.html">Graph Atc 3</a></li>
-			<li><a href="DevPoint.html">Dev Point</a></li>
-			<li><a href="Advertising.html">Advertising</a></li>
-			<li>Stored data</li>
+    <div class="container nav-container">
+        <input class="checkbox" type="checkbox" name="" id="">
+        <div class="hamburger-lines">
+          <span class="line line1"></span>
+          <span class="line line2"></span>
+          <span class="line line3"></span>
+        </div>  
+      <div class="menu-items">
+            <li> Live Data </li>
+            <li><a href="GraphAtc.html">Graph Atc 1</a></li>
+            <li><a href="GraphAtc1.html">Graph Atc 2</a></li>
+            <li><a href="GraphAtc2.html">Graph Atc 3</a></li>
+            <li><a href="DevPoint.html">Dev Point</a></li>
+            <li><a href="Advertising.html">Advertising</a></li>
+            <li>Stored data</li>
 			<li><a href="GraphMemo.html">Memo Graph</a></li>
 			<li><a href="GraphMemoOriginal.html">LYWSD03MMC Memo Graph </a></li>
-			<li>Others & Flasher</li>
-			<li><a href="TelinkMiFlasher.html">Flasher</a></li>
-			<li><a href="TelinkOTA.html">OTA Flasher</a></li>
-			<li><a href="USBCOMFlashTx.html">Windows USB-COM Flasher</a></li>
-	  </div>
-	</div>
+            <li>Others & Flasher</li>
+            <li><a href="TelinkMiFlasher.html">Flasher</a></li>
+            <li><a href="TelinkOTA.html">OTA Flasher</a></li>
+      </div>
+    </div>
 </div>
 <hr>
-<!-- Copyright: Aaron Christophel / Atc1441	 <a href="https://atcnetz.de">https://ATCnetz.de</a><br> -->
-<div style="height: auto; width: auto;">
-  <input type="checkbox" title="Web Experimental Features!" id="advmac">
-  <label for="advmac">Get Advertising MAC</label>
-  <br>
-  <label for="namePrefix">BLE device name prefix filter(s)</label>
-  <input type="text" id="namePrefix" value="" placeholder="LYWSD03,ATC"><br>
-  <button type="button" onclick="connect();">Connect</button>
-  <button type="button" onclick="disconnect();">Disconnect</button>
-  <button type="button" onclick="reConnect();">Reconnect</button><br>
- </div>
- <div id="percent">Status: waiting for you to connect a device</div>
- <div id="tempHumiData">Temp/Humidity: waiting for data after connecting</div><hr>
- <div id="MAC"></div>
- <div>
-	<hr>
-	<div id="ldfile" hidden="true">
-		Select Firmware: <input type="file" accept=".bin,.zigbee" id="file"/></div>
-	<div id="ldfrmw"></div>
- </div>
-  <div id="custcfg"></div>
-  <hr>
-  <button type="button" onclick="clearLog();">Clear Log</button>
-  <div id="log"></div>
-
-</body></html>
+<div id="MAC"></div>
+<hr>
+<div id="ldfile" hidden>
+<div id="ldfrmw"></div>
+<hr>
+<div id="custcfg"></div>
+<hr>
+<div id="tempHumiData">Temp/Humidity: waiting notify for data after connecting</div>
+<hr>
+<div id="percent">Status: Disconnected</div>
+<hr>
+<button type="button" onclick="clearLog();">Clear Log</button><br>
+<div id="log"></div>
+</body>
+</html>

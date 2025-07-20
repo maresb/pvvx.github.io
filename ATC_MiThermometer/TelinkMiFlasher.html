@@ -3694,5 +3694,44 @@ function SendCustomConfig() {
 	$("custcfg").innerHTML = '<hr><button type="button" onclick="sendCustomSetting(&quot;55&quot;);">Get Config</button><br>Send commands to custom firmware:<br><input type="text" id="cmdTXT" value=""><button type="button" onclick="sendCustomSetting($(&quot;cmdTXT&quot;).value,settingsCharacteristics);">Send</button><br>';
 }
 </script>
+<h1>Telink Flasher for Mi Thermostat</h1>
+<div class="navbar">
+    <div class="container nav-container">
+        <input class="checkbox" type="checkbox" name="" id="">
+        <div class="hamburger-lines">
+          <span class="line line1"></span>
+          <span class="line line2"></span>
+          <span class="line line3"></span>
+        </div>  
+      <div class="menu-items">
+            <li> Live Data </li>
+            <li><a href="GraphAtc.html">Graph Atc 1</a></li>
+            <li><a href="GraphAtc1.html">Graph Atc 2</a></li>
+            <li><a href="GraphAtc2.html">Graph Atc 3</a></li>
+            <li><a href="DevPoint.html">Dev Point</a></li>
+            <li><a href="Advertising.html">Advertising</a></li>
+            <li>Stored data</li>
+			<li><a href="GraphMemo.html">Memo Graph</a></li>
+			<li><a href="GraphMemoOriginal.html">LYWSD03MMC Memo Graph </a></li>
+            <li>Others & Flasher</li>
+            <li><a href="TelinkMiFlasher.html">Flasher</a></li>
+            <li><a href="TelinkOTA.html">OTA Flasher</a></li>
+      </div>
+    </div>
+</div>
+<hr>
+<div id="MAC"></div>
+<hr>
+<div id="ldfile" hidden>
+<div id="ldfrmw"></div>
+<hr>
+<div id="custcfg"></div>
+<hr>
+<div id="tempHumiData">Temp/Humidity: waiting notify for data after connecting</div>
+<hr>
+<div id="percent">Status: Disconnected</div>
+<hr>
+<button type="button" onclick="clearLog();">Clear Log</button><br>
+<div id="log"></div>
 </body>
 </html>
